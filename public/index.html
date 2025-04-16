@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NFC Attendance System</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Login Form -->
+        <div id="login-container" class="auth-container">
+            <div class="auth-box">
+                <h2>NFC Attendance System</h2>
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Login</button>
+                </form>
+                <div id="login-error" class="error-message"></div>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div id="dashboard-container" class="dashboard-container hidden">
+            <header class="dashboard-header">
+                <h1>NFC Attendance System</h1>
+                <div class="user-info">
+                    <span id="user-display"></span>
+                    <button id="logout-btn" class="btn btn-outline">Logout</button>
+                </div>
+            </header>
+
+            <div class="dashboard-content">
+                <!-- Sidebar Navigation -->
+                <nav class="sidebar">
+                    <ul>
+                        <li><a href="#" class="nav-link active" data-section="attendance"><i class="fas fa-qrcode"></i> NFC Attendance</a></li>
+                        <li><a href="#" class="nav-link" data-section="records"><i class="fas fa-list"></i> View Records</a></li>
+                        <li><a href="#" class="nav-link" data-section="import"><i class="fas fa-file-import"></i> Import Students</a></li>
+                        <li><a href="#" class="nav-link" data-section="export"><i class="fas fa-file-export"></i> Export Data</a></li>
+                        <li id="admin-nav" class="hidden"><a href="#" class="nav-link" data-section="admin"><i class="fas fa-users-cog"></i> Admin Panel</a></li>
+                    </ul>
+                </nav>
+
+                <!-- Main Content Area -->
+                <main class="content-area">
+                    <!-- NFC Attendance Section -->
+                    <section id="attendance-section" class="content-section">
+                        <h2>Record Attendance with NFC</h2>
+                        <div class="nfc-reader-container">
+                            <div class="nfc-reader">
+                                <i class="fas fa-wifi fa-flip-vertical fa-3x"></i>
+                                <p>Tap NFC Card to Record Attendance</p>
+                            </div>
+                            <button id="start-nfc-btn" class="btn btn-primary">Start NFC Reader</button>
+                            <div id="nfc-status" class="status-message"></div>
+                        </div>
+                        <div class="recent-scans">
+                            <h3>Recent Scans</h3>
+                            <div id="recent-scans-list" class="scans-list">
+                                <p class="empty-message">No recent scans</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- View Records Section -->
+                    <section id="records-section" class="content-section hidden">
+                        <h2>Attendance Records</h2>
+                        <div class="filter-controls">
+                            <input type="text" id="search-records" placeholder="Search by name or ID..." class="search-input">
+                            <div class="date-filter">
+                                <label for="date-filter">Filter by date:</label>
+                                <input type="date" id="date-filter">
+                                <button id="clear-filter" class="btn btn-small">Clear</button>
+                            </div>
+                        </div>
+                        <div class="records-table-container">
+                            <table id="records-table" class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Student ID</th>
+                                        <th>Name</th>
+                                        <th>Major</th>
+                                        <th>Stage</th>
+                                        <th>Study</th>
+                                        <th>Group</th>
+                                        <th>Timestamp</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="records-body">
+                                    <!-- Records will be populated here -->
+                                </tbody>
+                            </table>
+                            <div id="records-empty" class="empty-message">No records found</div>
+                        </div>
+                    </section>
+
+                    <!-- Import Students Section -->
+                    <section id="import-section" class="content-section hidden">
+                        <h2>Import Student Database</h2>
+                        <div class="import-container">
+                            <form id="import-form" class="upload-form">
+                                <div class="form-group">
+                                    <label for="db-file">Select SQLite Database File (.db)</label>
+                                    <input type="file" id="db-file" name="database" accept=".db" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Upload Database</button>
+                            </form>
+                            <div id="import-status" class="status-message"></div>
+                        </div>
+                        <div class="db-info">
+                            <h3>Current Database Info</h3>
+                            <div id="db-info-content">
+                                <p class="empty-message">No database uploaded yet</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Export Data Section -->
+                    <section id="export-section" class="content-section hidden">
+                        <h2>Export Attendance Data</h2>
+                        <div class="export-container">
+                            <div class="export-options">
+                                <h3>Export Format</h3>
+                                <div class="radio-group">
+                                    <label>
+                                        <input type="radio" name="export-format" value="csv" checked>
+                                        CSV Format
+                                    </label>
+                                    <label>
+                                        <input type="radio" name="export-format" value="xlsx">
+                                        Excel Format (XLSX)
+                                    </label>
+                                </div>
+                                <div id="teacher-select-container" class="form-group hidden">
+                                    <label for="teacher-select">Select Teacher:</label>
+                                    <select id="teacher-select">
+                                        <option value="">All Teachers</option>
+                                        <!-- Teacher options will be populated here -->
+                                    </select>
+                                </div>
+                                <button id="export-btn" class="btn btn-primary">Export Data</button>
+                            </div>
+                            <div class="reset-container">
+                                <h3>Reset Attendance Data</h3>
+                                <p class="warning-text">Warning: This action cannot be undone!</p>
+                                <div id="reset-options-container">
+                                    <div id="admin-reset-options" class="hidden">
+                                        <div class="radio-group">
+                                            <label>
+                                                <input type="radio" name="reset-scope" value="all">
+                                                Reset All Data
+                                            </label>
+                                            <label>
+                                                <input type="radio" name="reset-scope" value="teacher">
+                                                Reset Specific Teacher
+                                            </label>
+                                        </div>
+                                        <div id="reset-teacher-select" class="form-group hidden">
+                                            <label for="reset-teacher">Select Teacher:</label>
+                                            <select id="reset-teacher">
+                                                <!-- Teacher options will be populated here -->
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <button id="reset-btn" class="btn btn-danger">Reset My Data</button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Admin Panel Section -->
+                    <section id="admin-section" class="content-section hidden">
+                        <h2>Admin Panel</h2>
+                        <div class="admin-container">
+                            <div class="teacher-management">
+                                <h3>Teacher Accounts</h3>
+                                <div class="teacher-list-container">
+                                    <table id="teachers-table" class="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Username</th>
+                                                <th>Created</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="teachers-body">
+                                            <!-- Teachers will be populated here -->
+                                        </tbody>
+                                    </table>
+                                    <div id="teachers-empty" class="empty-message">No teachers found</div>
+                                </div>
+                                <button id="add-teacher-btn" class="btn btn-primary">Add New Teacher</button>
+                            </div>
+                        </div>
+                    </section>
+                </main>
+            </div>
+        </div>
+
+        <!-- Modal for adding new teacher -->
+        <div id="add-teacher-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-modal">&times;</span>
+                <h3>Add New Teacher</h3>
+                <form id="add-teacher-form">
+                    <div class="form-group">
+                        <label for="new-username">Username</label>
+                        <input type="text" id="new-username" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-password">Password</label>
+                        <input type="password" id="new-password" name="password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create Account</button>
+                </form>
+                <div id="add-teacher-error" class="error-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
