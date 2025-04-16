@@ -457,39 +457,31 @@ async function toggleNfcReader() {
     if (!isNfcReading) {
         try {
             if ('NDEFReader' in window) {
-                nfcReader = new NDEFReader();
-                await nfcReader.scan();
-                
-                nfcReader.addEventListener('reading', handleNfcReading);
-                
-                isNfcReading = true;
-                startNfcBtn.textContent = 'Stop NFC Reader';
-                document.querySelector('.nfc-reader').classList.add('active');
-                nfcStatus.textContent = 'NFC reader active. Tap a card to record attendance.';
-                nfcStatus.className = 'status-message';
+                try {
+                    nfcReader = new NDEFReader();
+                    await nfcReader.scan();
+                    
+                    nfcReader.addEventListener('reading', handleNfcReading);
+                    
+                    isNfcReading = true;
+                    startNfcBtn.textContent = 'Stop NFC Reader';
+                    document.querySelector('.nfc-reader').classList.add('active');
+                    nfcStatus.textContent = 'NFC reader active. Tap a card to record attendance.';
+                    nfcStatus.className = 'status-message';
+                } catch (nfcError) {
+                    console.warn('NFC permission denied or error:', nfcError);
+                    // Fall back to simulation mode if NFC permission is denied
+                    enableSimulationMode('NFC permission denied or error: ' + nfcError.message);
+                }
             } else {
                 // Enable simulation mode automatically if Web NFC is not supported
-                isNfcReading = true;
-                startNfcBtn.textContent = 'Stop Simulation Mode';
-                document.querySelector('.nfc-reader').classList.add('active');
-                nfcStatus.textContent = 'Simulation mode active. Web NFC is not supported in this browser.';
-                nfcStatus.className = 'status-message simulation-mode';
-                
-                // Show simulation controls
-                showSimulationControls();
+                enableSimulationMode('Web NFC is not supported in this browser.');
             }
         } catch (error) {
             console.error('Error starting NFC reader:', error);
             
             // Enable simulation mode if there's an error starting the NFC reader
-            isNfcReading = true;
-            startNfcBtn.textContent = 'Stop Simulation Mode';
-            document.querySelector('.nfc-reader').classList.add('active');
-            nfcStatus.textContent = 'Simulation mode active. Error with NFC reader: ' + error.message;
-            nfcStatus.className = 'status-message simulation-mode';
-            
-            // Show simulation controls
-            showSimulationControls();
+            enableSimulationMode('Error with NFC reader: ' + error.message);
         }
     } else {
         try {
@@ -512,6 +504,21 @@ async function toggleNfcReader() {
             console.error('Error stopping NFC reader:', error);
         }
     }
+}
+
+/**
+ * Helper function to enable simulation mode
+ * @param {string} message - The message to display
+ */
+function enableSimulationMode(message) {
+    isNfcReading = true;
+    startNfcBtn.textContent = 'Stop Simulation Mode';
+    document.querySelector('.nfc-reader').classList.add('active');
+    nfcStatus.textContent = 'Simulation mode active. ' + message;
+    nfcStatus.className = 'status-message simulation-mode';
+    
+    // Show simulation controls
+    showSimulationControls();
 }
 
 async function handleNfcReading({ message, serialNumber }) {

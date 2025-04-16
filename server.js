@@ -1,3 +1,6 @@
+// Load environment variables from .env file
+require('dotenv').config();
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -13,6 +16,15 @@ const XLSX = require('xlsx');
 // Initialize express app
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// GitHub configuration from environment variables
+const GITHUB_CONFIG = {
+  token: process.env.GITHUB_TOKEN,
+  owner: process.env.GITHUB_OWNER,
+  repo: process.env.GITHUB_REPO,
+  branch: process.env.GITHUB_BRANCH,
+  dbFolder: 'databases'
+};
 
 // Middleware
 app.use(cors());
@@ -79,8 +91,8 @@ db.serialize(() => {
   });
 });
 
-// JWT Secret
-const JWT_SECRET = 'nfc-attendance-system-secret';
+// JWT Secret from environment variables
+const JWT_SECRET = process.env.JWT_SECRET || 'nfc-attendance-system-secret';
 
 // Authentication middleware
 const authenticateToken = (req, res, next) => {
@@ -207,48 +219,23 @@ app.post('/api/upload-db', authenticateToken, upload.single('database'), (req, r
   // Store the file path in the user's session or database
   const dbFilePath = req.file.path;
   
-  // First check if student_db_path column exists, and add it if it doesn't
-  db.all("PRAGMA table_info(users)", (err, rows) => {
-    if (err) {
-      console.error('Error checking table schema:', err.message);
-      return res.status(500).json({ message: 'Database error: ' + err.message });
-    }
-    
-    // Check if student_db_path column exists in the results
-    const hasStudentDbPath = rows && Array.isArray(rows) && rows.some(row => row.name === 'student_db_path');
-    
-    if (!hasStudentDbPath) {
-      // Add the column if it doesn't exist
-      db.run("ALTER TABLE users ADD COLUMN student_db_path TEXT", (alterErr) => {
-        if (alterErr) {
-          console.error('Error adding student_db_path column:', alterErr.message);
-          return res.status(500).json({ message: 'Error updating database schema: ' + alterErr.message });
+  // Update the user record with the database path
+  // No need to check for column existence since it's defined in the initial schema
+  try {
+    db.run(
+      "UPDATE users SET student_db_path = ? WHERE id = ?",
+      [dbFilePath, req.user.id],
+      function(err) {
+        if (err) {
+          console.error('Error updating user record:', err.message);
+          return res.status(500).json({ message: 'Error updating user record: ' + err.message });
         }
-        updateUserRecord();
-      });
-    } else {
-      updateUserRecord();
-    }
-  });
-  
-  // Function to update the user record with the database path
-  function updateUserRecord() {
-    try {
-      db.run(
-        "UPDATE users SET student_db_path = ? WHERE id = ?",
-        [dbFilePath, req.user.id],
-        function(err) {
-          if (err) {
-            console.error('Error updating user record:', err.message);
-            return res.status(500).json({ message: 'Error updating user record: ' + err.message });
-          }
-          res.json({ message: 'Database uploaded successfully', path: dbFilePath });
-        }
-      );
-    } catch (error) {
-      console.error('Exception during database update:', error);
-      return res.status(500).json({ message: 'Server error during database update' });
-    }
+        res.json({ message: 'Database uploaded successfully', path: dbFilePath });
+      }
+    );
+  } catch (error) {
+    console.error('Exception during database update:', error);
+    return res.status(500).json({ message: 'Server error during database update' });
   }
 });
 

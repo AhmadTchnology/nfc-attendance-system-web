@@ -1,4 +1,4 @@
-// Netlify serverless function to handle all API routes
+// API routes for the NFC Attendance System
 const express = require('express');
 const serverless = require('serverless-http');
 const bodyParser = require('body-parser');
@@ -11,9 +11,125 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const cookieParser = require('cookie-parser');
 const XLSX = require('xlsx');
+const fetch = require('node-fetch');
+
+// Load environment variables
+require('dotenv').config();
+
+// GitHub configuration from environment variables
+const GITHUB_CONFIG = {
+  token: process.env.GITHUB_TOKEN,
+  owner: process.env.GITHUB_OWNER,
+  repo: process.env.GITHUB_REPO,
+  branch: process.env.GITHUB_BRANCH,
+  dbFolder: 'databases'
+};
 
 // Initialize express app
 const app = express();
+
+// Middleware
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// GitHub configuration endpoint - provides non-sensitive config to client
+app.get('/github-config', (req, res) => {
+  res.json({
+    owner: GITHUB_CONFIG.owner,
+    repo: GITHUB_CONFIG.repo,
+    branch: GITHUB_CONFIG.branch,
+    dbFolder: GITHUB_CONFIG.dbFolder
+  });
+});
+
+// Upload to GitHub endpoint
+app.post('/upload-to-github', authenticateToken, upload.single('database'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No database file provided' });
+    }
+
+    // Read the file as base64
+    const fileContent = fs.readFileSync(req.file.path);
+    const base64Content = Buffer.from(fileContent).toString('base64');
+
+    // Generate a unique filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `${req.file.originalname.replace('.db', '')}_${timestamp}.db`;
+    const path = `${GITHUB_CONFIG.dbFolder}/${fileName}`;
+
+    // Ensure the folder exists
+    await ensureGitHubFolderExists();
+
+    // Upload the file to GitHub
+    const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${path}`;
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `token ${GITHUB_CONFIG.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: `Upload database file: ${fileName}`,
+        content: base64Content,
+        branch: GITHUB_CONFIG.branch
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `GitHub API error: ${response.status}`);
+    }
+
+    // Clean up the temporary file
+    fs.unlinkSync(req.file.path);
+
+    res.json({ message: `Database uploaded successfully to GitHub: ${fileName}` });
+  } catch (error) {
+    console.error('Error uploading to GitHub:', error);
+    res.status(500).json({ message: `Error uploading to GitHub: ${error.message}` });
+  }
+});
+
+// Helper function to ensure the GitHub folder exists
+async function ensureGitHubFolderExists() {
+  try {
+    // Check if the folder exists
+    const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.dbFolder}`;
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `token ${GITHUB_CONFIG.token}`
+      }
+    });
+
+    if (response.status === 404) {
+      // Folder doesn't exist, create it
+      const createResponse = await fetch(
+        `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.dbFolder}/.gitkeep`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${GITHUB_CONFIG.token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: 'Create databases folder',
+            content: Buffer.from('').toString('base64'),
+            branch: GITHUB_CONFIG.branch
+          })
+        }
+      );
+
+      if (!createResponse.ok) {
+        throw new Error('Failed to create databases folder');
+      }
+    }
+  } catch (error) {
+    console.error('Error ensuring GitHub folder exists:', error);
+    throw error;
+  }
+}
 
 // Middleware
 app.use(cors());
