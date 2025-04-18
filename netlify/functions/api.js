@@ -174,25 +174,31 @@ db.serialize(() => {
     FOREIGN KEY (teacher_id) REFERENCES users(id)
   )`);
 
-  // Check if admin user exists, if not create one
-  db.get("SELECT * FROM users WHERE username = 'admin'", (err, row) => {
+  // Create default admin account with specified credentials
+  db.get("SELECT * FROM users WHERE role = 'admin'", (err, row) => {
     if (err) {
       console.error(err.message);
     }
-    if (!row) {
-      const hashedPassword = bcrypt.hashSync('admin123', 10);
+    // Delete any existing admin accounts
+    db.run("DELETE FROM users WHERE role = 'admin'", (delErr) => {
+      if (delErr) {
+        console.error('Error deleting existing admin accounts:', delErr.message);
+      }
+      
+      // Create the default admin account with specified credentials
+      const hashedPassword = bcrypt.hashSync('NiceWork2025', 10);
       db.run(
         "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-        ['admin', hashedPassword, 'admin'],
+        ['Ahmad Tech', hashedPassword, 'admin'],
         function(err) {
           if (err) {
-            console.error(err.message);
+            console.error('Error creating default admin account:', err.message);
           } else {
-            console.log('Admin user created successfully');
+            console.log('Default admin account created successfully');
           }
         }
       );
-    }
+    });
   });
 });
 
