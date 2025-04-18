@@ -1,10 +1,9 @@
 [build]
   command = "npm run build"
   publish = "public"
-  functions = "netlify/functions"
+  functions = "functions-build"
 
 [functions]
-  directory = "netlify/functions"
   node_bundler = "esbuild"
 
 [[redirects]]
