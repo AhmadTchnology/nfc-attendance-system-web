@@ -1,5 +1,7 @@
 {
-  "build": {
-    "functions": "functions-build"
+  "webpack": {
+    "output": {
+      "path": "functions-build"
+    }
   }
 }
