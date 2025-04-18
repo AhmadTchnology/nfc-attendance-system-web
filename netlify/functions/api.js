@@ -138,14 +138,15 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Ensure data directories exist
-const dataDir = path.join(__dirname, '..', '..', 'data');
+// Ensure data directories exist - use /tmp for Netlify Functions
+const dataDir = process.env.NETLIFY ? '/tmp' : path.join(__dirname, '..', '..', 'data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
 // Database setup
 const dbPath = path.join(dataDir, 'system.db');
+console.log('Using database path:', dbPath);
 const db = new sqlite3.Database(dbPath);
 
 // Initialize database tables
@@ -233,7 +234,7 @@ const authorizeAdmin = (req, res, next) => {
 // File upload configuration for student database
 const storage = multer.diskStorage({
   destination: function(req, file, cb) {
-    cb(null, dataDir);
+    cb(null, dataDir); // This now points to /tmp on Netlify
   },
   filename: function(req, file, cb) {
     cb(null, 'students_' + req.user.id + '_' + Date.now() + '.db');
