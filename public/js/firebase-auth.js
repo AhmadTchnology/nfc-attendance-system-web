@@ -164,7 +164,7 @@ const FirebaseAuth = {
             }
             
             // Fall back to server login if Firebase auth is not available
-            const response = await fetch('/.netlify/functions/api/login', {
+            const response = await fetch('/api/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
