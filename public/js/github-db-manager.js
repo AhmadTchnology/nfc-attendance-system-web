@@ -17,11 +17,28 @@ const GitHubDBManager = {
         try {
             const response = await fetch('/.netlify/functions/api/github-config');
             if (response.ok) {
+                // Check content type to ensure we're getting JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error(`Expected JSON but got ${contentType || 'unknown content type'}`);
+                }
+                
                 const config = await response.json();
                 this.config.owner = config.owner;
                 this.config.repo = config.repo;
                 this.config.branch = config.branch;
                 console.log('GitHub configuration loaded from server');
+            } else {
+                console.error('Failed to load GitHub configuration, status:', response.status);
+                // Try fallback to direct API endpoint
+                const fallbackResponse = await fetch('/api/github-config');
+                if (fallbackResponse.ok) {
+                    const config = await fallbackResponse.json();
+                    this.config.owner = config.owner;
+                    this.config.repo = config.repo;
+                    this.config.branch = config.branch;
+                    console.log('GitHub configuration loaded from fallback endpoint');
+                }
             }
         } catch (error) {
             console.error('Failed to load GitHub configuration:', error);

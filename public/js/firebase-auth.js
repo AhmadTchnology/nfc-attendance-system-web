@@ -9,12 +9,37 @@ const FirebaseAuth = {
     async init() {
         try {
             // Fetch Firebase configuration from server
-            const response = await fetch('/.netlify/functions/api/firebase-config');
+            const response = await fetch('/.netlify/functions/firebase-config');
+            
+            // Check if response is OK
             if (!response.ok) {
-                throw new Error('Failed to load Firebase configuration');
+                console.error('Failed to load Firebase configuration, status:', response.status);
+                throw new Error(`Failed to load Firebase configuration: ${response.status}`);
             }
             
-            const firebaseConfig = await response.json();
+            // Check content type to ensure we're getting JSON
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                console.error(`Expected JSON but got ${contentType || 'unknown content type'}`);
+                throw new Error(`Expected JSON but got ${contentType || 'unknown content type'}`);
+            }
+            
+            // Parse the response as JSON
+            let firebaseConfig;
+            try {
+                firebaseConfig = await response.json();
+            } catch (jsonError) {
+                console.error('Failed to parse Firebase config as JSON:', jsonError);
+                throw new Error('Failed to parse Firebase configuration as JSON');
+            }
+            
+            // Validate the config object has required fields
+            if (!firebaseConfig || !firebaseConfig.apiKey) {
+                console.error('Invalid Firebase configuration:', firebaseConfig);
+                throw new Error('Invalid Firebase configuration');
+            }
+            
+            console.log('Firebase config loaded successfully');
             
             // Initialize Firebase
             firebase.initializeApp(firebaseConfig);
@@ -31,6 +56,8 @@ const FirebaseAuth = {
             return true;
         } catch (error) {
             console.error('Firebase initialization error:', error);
+            // Fall back to local login if Firebase fails
+            this.setupUI();
             return false;
         }
     },
@@ -54,8 +81,12 @@ const FirebaseAuth = {
                             showDashboard();
                             loadInitialData();
                         }
+                    }).catch(error => {
+                        console.error('Error getting ID token:', error);
                     });
                 }
+            }).catch(error => {
+                console.error('Error getting user role:', error);
             });
         } else {
             // User is signed out
@@ -93,15 +124,19 @@ const FirebaseAuth = {
         // Replace the login form submit handler
         const loginForm = document.getElementById('login-form');
         if (loginForm) {
-            loginForm.removeEventListener('submit', handleLogin);
-            loginForm.addEventListener('submit', this.handleLogin.bind(this));
+            // Remove existing event listeners if any
+            const newLoginForm = loginForm.cloneNode(true);
+            loginForm.parentNode.replaceChild(newLoginForm, loginForm);
+            newLoginForm.addEventListener('submit', this.handleLogin.bind(this));
         }
         
         // Replace the logout button handler
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
-            logoutBtn.removeEventListener('click', handleLogout);
-            logoutBtn.addEventListener('click', this.handleLogout.bind(this));
+            // Remove existing event listeners if any
+            const newLogoutBtn = logoutBtn.cloneNode(true);
+            logoutBtn.parentNode.replaceChild(newLogoutBtn, logoutBtn);
+            newLogoutBtn.addEventListener('click', this.handleLogout.bind(this));
         }
     },
     
@@ -115,8 +150,60 @@ const FirebaseAuth = {
         
         try {
             loginError.textContent = '';
-            await this.auth.signInWithEmailAndPassword(email, password);
-            // Auth state change listener will handle the rest
+            
+            // Check if Firebase auth is initialized
+            if (this.auth) {
+                try {
+                    await this.auth.signInWithEmailAndPassword(email, password);
+                    // Auth state change listener will handle the rest
+                    return;
+                } catch (firebaseError) {
+                    console.error('Firebase login error:', firebaseError);
+                    // Continue to server login if Firebase fails
+                }
+            }
+            
+            // Fall back to server login if Firebase auth is not available
+            const response = await fetch('/.netlify/functions/api/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username: email, password })
+            });
+            
+            // Check if response is OK
+            if (!response.ok) {
+                const contentType = response.headers.get('content-type');
+                
+                // Handle different response types
+                if (contentType && contentType.includes('application/json')) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Login failed. Please check your credentials.');
+                } else {
+                    throw new Error(`Login failed with status: ${response.status}`);
+                }
+            }
+            
+            // Parse the response as JSON
+            let userData;
+            try {
+                userData = await response.json();
+            } catch (jsonError) {
+                console.error('Failed to parse login response as JSON:', jsonError);
+                throw new Error('Failed to parse login response');
+            }
+            
+            // Store user data and token
+            localStorage.setItem('token', userData.token);
+            localStorage.setItem('user', JSON.stringify(userData));
+            
+            // Update UI
+            if (typeof setCurrentUser === 'function') {
+                setCurrentUser(userData);
+                showDashboard();
+                loadInitialData();
+            }
         } catch (error) {
             console.error('Login error:', error);
             loginError.textContent = error.message || 'Login failed. Please check your credentials.';
@@ -126,8 +213,26 @@ const FirebaseAuth = {
     // Handle logout
     async handleLogout() {
         try {
-            await this.auth.signOut();
-            // Auth state change listener will handle the rest
+            // If Firebase auth is initialized, sign out
+            if (this.auth) {
+                await this.auth.signOut();
+            }
+            
+            // Also call server logout endpoint
+            try {
+                await fetch('/.netlify/functions/api/logout', { method: 'POST' });
+            } catch (serverError) {
+                console.error('Server logout error:', serverError);
+            }
+            
+            // Clear local storage
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            
+            // Update UI
+            if (typeof showLogin === 'function') {
+                showLogin();
+            }
         } catch (error) {
             console.error('Logout error:', error);
         }
@@ -135,11 +240,16 @@ const FirebaseAuth = {
     
     // Get current user token for API requests
     async getCurrentUserToken() {
-        const user = this.auth.currentUser;
+        const user = this.auth?.currentUser;
         if (user) {
-            return user.getIdToken();
+            try {
+                return await user.getIdToken();
+            } catch (error) {
+                console.error('Error getting ID token:', error);
+                return null;
+            }
         }
-        return null;
+        return localStorage.getItem('token') || null;
     }
 };
 
@@ -147,7 +257,9 @@ const FirebaseAuth = {
 document.addEventListener('DOMContentLoaded', () => {
     // Check if Firebase SDK is loaded
     if (typeof firebase !== 'undefined') {
-        FirebaseAuth.init();
+        FirebaseAuth.init().catch(error => {
+            console.error('Failed to initialize Firebase:', error);
+        });
     } else {
         console.error('Firebase SDK not loaded');
     }

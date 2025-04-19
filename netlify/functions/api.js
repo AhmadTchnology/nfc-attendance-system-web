@@ -36,6 +36,8 @@ app.use(cookieParser());
 
 // GitHub configuration endpoint - provides non-sensitive config to client
 app.get('/github-config', (req, res) => {
+  // Set proper content type header to ensure JSON parsing works correctly
+  res.setHeader('Content-Type', 'application/json');
   res.json({
     owner: GITHUB_CONFIG.owner,
     repo: GITHUB_CONFIG.repo,

@@ -26,6 +26,18 @@ const GITHUB_CONFIG = {
   dbFolder: 'databases'
 };
 
+// GitHub configuration endpoint - provides non-sensitive config to client
+app.get('/api/github-config', (req, res) => {
+  // Set proper content type header to ensure JSON parsing works correctly
+  res.setHeader('Content-Type', 'application/json');
+  res.json({
+    owner: GITHUB_CONFIG.owner,
+    repo: GITHUB_CONFIG.repo,
+    branch: GITHUB_CONFIG.branch,
+    dbFolder: GITHUB_CONFIG.dbFolder
+  });
+});
+
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
